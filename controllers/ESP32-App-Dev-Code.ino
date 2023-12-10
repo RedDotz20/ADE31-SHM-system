@@ -41,26 +41,27 @@ void handleWebSocket() {
   }
 
   // Calculating Energy Consumption (Wh)
+  if (isLEDOn) {
+    // Calculate power for each sensor
+    float power = voltage * (currentValueADC / 4095.0);
 
-  // Calculate power for each sensor
-  float power = voltage * (currentValueADC / 4095.0);
+    // Calculate energy consumption (Wh)
+    unsigned long currentTime = millis();
+    float deltaTime = (currentTime - lastUpdateTime) / 1000.0; // Convert to seconds
+    float energy = power * deltaTime / 3600.0; // Convert to Wh
 
-  // Calculate energy consumption (Wh)
-  unsigned long currentTime = millis();
-  float deltaTime = (currentTime - lastUpdateTime) / 1000.0; // Convert to seconds
-  float energy = power * deltaTime / 3600.0; // Convert to Wh
+    totalEnergy += energy;
+    lastUpdateTime = currentTime;
 
-  totalEnergy += energy;
-  lastUpdateTime = currentTime;
+    // Send energy consumption to clients
+    String message = "Energy: " + String(totalEnergy) + " Wh";
+    webSocket.broadcastTXT(message.c_str());
 
-  // Send energy consumption to clients
-  String message = "Energy: " + String(totalEnergy) + " Wh";
-  webSocket.broadcastTXT(message.c_str());
-
-  // Send energy consumption in kilowatt-hours (kWh) to clients
-  float totalEnergyKWh = totalEnergy / 1000.0; // Convert Wh to kWh
-  String messageKWh = "Energy (kWh): " + String(totalEnergyKWh) + " kWh";
-  webSocket.broadcastTXT(messageKWh.c_str());
+    // Send energy consumption in kilowatt-hours (kWh) to clients
+    float totalEnergyKWh = totalEnergy / 1000.0; // Convert Wh to kWh
+    String messageKWh = "Energy (kWh): " + String(totalEnergyKWh) + " kWh";
+    webSocket.broadcastTXT(messageKWh.c_str());
+  }
 }
 
 void sendToClient(const char *message) {
@@ -72,14 +73,22 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
     case WStype_TEXT:
       if (strcmp((char *)payload, "on") == 0) {
         Serial.write('1');
+        isLEDOn = true;
+        Serial.print("isLEDOn: ");
+        Serial.println(isLEDOn);
         sendToClient("Power Turned ON");
         digitalWrite(ledPin, HIGH);
       } else if (strcmp((char *)payload, "off") == 0) {
         Serial.write('0');
+        isLEDOn = false;
+        Serial.print("isLEDOn: ");
+        Serial.println(isLEDOn);
         sendToClient("Power Turned OFF");
         digitalWrite(ledPin, LOW);
+      } else if (strcmp((char *)payload, "reset") == 0) {
+        totalEnergy = 0.0;
       }
-   
+
       break;
     default:
     break;
